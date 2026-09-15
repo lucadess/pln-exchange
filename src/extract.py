@@ -15,10 +15,30 @@ from datetime import date, datetime, timedelta
 
 import requests
 from pyspark.sql import DataFrame, SparkSession
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+from pyspark.sql.types import ArrayType, DoubleType, StringType, StructField, StructType
 
 from src.utils import load_config
+
+# Shape of one NBP exchange rate table (one trading day, every currency against PLN).
+TABLE_SCHEMA = StructType(
+    [
+        StructField("table", StringType()),
+        StructField("no", StringType()),
+        StructField("effectiveDate", StringType()),
+        StructField(
+            "rates",
+            ArrayType(
+                StructType(
+                    [
+                        StructField("currency", StringType()),
+                        StructField("code", StringType()),
+                        StructField("mid", DoubleType()),
+                    ]
+                )
+            ),
+        ),
+    ]
+)
 
 
 class Extract:
@@ -28,16 +48,18 @@ class Extract:
         self.spark = spark
         self.config = load_config(config_path)
         self.api_config = self.config["api"]
-        self.session = self.build_session()
 
     def ingest(self) -> DataFrame:
         """Fetch every date window in the configured range and return one Spark DataFrame."""
         start_date, end_date = self.get_date_range()
         windows = self.get_date_windows(start_date, end_date)
-        responses = [self.fetch_window(window_start, window_end) for window_start, window_end in windows]
 
-        json_rdd = self.spark.sparkContext.parallelize(responses)
-        return self.spark.read.option("multiLine", True).json(json_rdd)
+        result_df = None
+        for window_start, window_end in windows:
+            tables = self.fetch_window(window_start, window_end)
+            window_df = self.spark.createDataFrame(tables, schema=TABLE_SCHEMA)
+            result_df = window_df if result_df is None else result_df.union(window_df)
+        return result_df
 
     def get_date_range(self) -> tuple[date, date]:
         """Resolve the extraction date range from explicit dates or years_back in the config."""
@@ -77,27 +99,16 @@ class Extract:
         base_url = self.api_config["base_url"]
         return f"{base_url}/{window_start.isoformat()}/{window_end.isoformat()}/"
 
-    def build_session(self) -> requests.Session:
-        """Create a requests Session that automatically retries transient server errors."""
-        retry = Retry(
-            total=self.api_config["max_retries"],
-            backoff_factor=self.api_config["retry_backoff_seconds"],
-            status_forcelist=[500, 502, 503, 504],
-        )
-        session = requests.Session()
-        session.mount("https://", HTTPAdapter(max_retries=retry))
-        return session
-
-    def fetch_window(self, window_start: date, window_end: date) -> str:
-        """Call the API for one date window and return the raw JSON response body."""
+    def fetch_window(self, window_start: date, window_end: date) -> list[dict]:
+        """Call the API for one date window and return its list of exchange rate tables."""
         url = self.build_url(window_start, window_end)
-        response = self.session.get(url, params={"format": "json"}, timeout=self.api_config["timeout_seconds"])
+        response = requests.get(url, params={"format": "json"}, timeout=self.api_config["timeout_seconds"])
         if response.status_code == 404:
             # No tables published for this exact range (e.g. a window landing entirely
             # on a weekend/holiday) - treat as "no data" rather than an error.
-            return "[]"
+            return []
         response.raise_for_status()
-        return response.text
+        return response.json()
 
     @staticmethod
     def subtract_years(reference_date: date, years: int) -> date:

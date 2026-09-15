@@ -3,17 +3,10 @@
 # Extract step: pulls raw NBP exchange rate tables into a Spark DataFrame.
 
 # %%
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-# %%
 from src.extract import Extract
 
 # %%
-extractor = Extract(spark, config_path=str(PROJECT_ROOT / "config.yaml"))
+extractor = Extract(spark, config_path="../config.yaml")
 raw_df = extractor.ingest()
 
 # %%

@@ -1,4 +1,3 @@
-import json
 from datetime import date
 from unittest.mock import MagicMock
 
@@ -57,10 +56,10 @@ def _fixed_today(fixed_date):
     return _FixedDate
 
 
-def _response(status_code=200, body=""):
+def _response(status_code=200, payload=None):
     response = MagicMock()
     response.status_code = status_code
-    response.text = body
+    response.json.return_value = payload if payload is not None else []
     if status_code >= 400 and status_code != 404:
         response.raise_for_status.side_effect = requests.HTTPError(f"{status_code} error")
     else:
@@ -86,7 +85,7 @@ class TestIngest:
             {"table": "A", "no": "002/A/NBP/2024", "effectiveDate": "2024-01-03",
              "rates": [{"currency": "euro", "code": "EUR", "mid": 4.36}]},
         ]
-        monkeypatch.setattr(extractor, "fetch_window", lambda start, end: json.dumps(tables))
+        monkeypatch.setattr(extractor, "fetch_window", lambda start, end: tables)
 
         df = extractor.ingest()
 
@@ -100,11 +99,32 @@ class TestIngest:
         monkeypatch.setattr(
             extractor, "get_date_windows", lambda start, end: [(date(2024, 1, 6), date(2024, 1, 7))]
         )
-        monkeypatch.setattr(extractor, "fetch_window", lambda start, end: "[]")
+        monkeypatch.setattr(extractor, "fetch_window", lambda start, end: [])
 
         df = extractor.ingest()
 
         assert df.count() == 0
+
+    def test_fails_the_whole_run_when_one_window_fails(self, extractor, monkeypatch):
+        monkeypatch.setattr(extractor, "get_date_range", lambda: (date(2024, 1, 1), date(2024, 1, 20)))
+        monkeypatch.setattr(
+            extractor,
+            "get_date_windows",
+            lambda start, end: [
+                (date(2024, 1, 1), date(2024, 1, 10)),
+                (date(2024, 1, 11), date(2024, 1, 20)),
+            ],
+        )
+
+        def fetch_window(window_start, window_end):
+            if window_start == date(2024, 1, 11):
+                raise requests.HTTPError("500 error")
+            return [{"table": "A", "no": "001/A/NBP/2024", "effectiveDate": "2024-01-02", "rates": []}]
+
+        monkeypatch.setattr(extractor, "fetch_window", fetch_window)
+
+        with pytest.raises(requests.HTTPError):
+            extractor.ingest()
 
 
 class TestGetDateRange:
@@ -157,32 +177,20 @@ class TestBuildUrl:
         assert url == "https://api.nbp.pl/api/exchangerates/tables/A/2024-01-01/2024-01-10/"
 
 
-class TestBuildSession:
-    def test_configures_retry_from_config(self, extractor):
-        adapter = extractor.session.get_adapter("https://api.nbp.pl")
-        retry = adapter.max_retries
-        assert retry.total == RAW_CONFIG["api"]["max_retries"]
-        assert retry.backoff_factor == RAW_CONFIG["api"]["retry_backoff_seconds"]
-        assert 500 in retry.status_forcelist
-
-
 class TestFetchWindow:
-    def test_returns_response_body_on_success(self, extractor):
-        extractor.session = MagicMock()
-        extractor.session.get.return_value = _response(200, '[{"table":"A"}]')
+    def test_returns_parsed_tables_on_success(self, extractor, monkeypatch):
+        monkeypatch.setattr(requests, "get", lambda *args, **kwargs: _response(200, [{"table": "A"}]))
 
-        body = extractor.fetch_window(date(2024, 1, 1), date(2024, 1, 10))
-        assert body == '[{"table":"A"}]'
+        tables = extractor.fetch_window(date(2024, 1, 1), date(2024, 1, 10))
+        assert tables == [{"table": "A"}]
 
-    def test_treats_404_as_empty_array(self, extractor):
-        extractor.session = MagicMock()
-        extractor.session.get.return_value = _response(404)
+    def test_treats_404_as_empty_list(self, extractor, monkeypatch):
+        monkeypatch.setattr(requests, "get", lambda *args, **kwargs: _response(404))
 
-        assert extractor.fetch_window(date(2024, 1, 6), date(2024, 1, 7)) == "[]"
+        assert extractor.fetch_window(date(2024, 1, 6), date(2024, 1, 7)) == []
 
-    def test_raises_on_http_error(self, extractor):
-        extractor.session = MagicMock()
-        extractor.session.get.return_value = _response(500)
+    def test_raises_on_http_error(self, extractor, monkeypatch):
+        monkeypatch.setattr(requests, "get", lambda *args, **kwargs: _response(500))
 
         with pytest.raises(requests.HTTPError):
             extractor.fetch_window(date(2024, 1, 1), date(2024, 1, 10))
