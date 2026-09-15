@@ -11,9 +11,8 @@ API reference: https://api.nbp.pl/en.html#kursyWalut
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
-
 import requests
+from datetime import date, datetime, timedelta
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import ArrayType, DoubleType, StringType, StructField, StructType
 
