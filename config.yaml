@@ -1,5 +1,5 @@
 api:
-  base_url: "https://api.nbp.pl/api/exchangerates/rates/A"
+  base_url: "https://api.nbp.pl/api/exchangerates/tables/A"
   max_days_per_request: 93   # confirmed via Postman testing against the multi-currency table endpoint
   timeout_seconds: 10
   max_retries: 3
