@@ -16,7 +16,7 @@ resources:
           depends_on:
             - task_key: extract_transform_load
           notebook_task:
-            notebook_path: notebooks/03_analyze
+            notebook_path: notebooks/02_visualize
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
@@ -27,7 +27,7 @@ resources:
           depends_on:
             - task_key: analyze
           notebook_task:
-            notebook_path: notebooks/02_visualize
+            notebook_path: notebooks/03_analyze
             base_parameters:
               catalog_name: "{{job.parameters.catalog_name}}"
               schema_name: "{{job.parameters.schema_name}}"
