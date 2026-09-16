@@ -3,7 +3,7 @@
 # MAGIC # PLN Exchange Rate Analysis
 # MAGIC Answers the four business questions from the case document, using SQL against the
 # MAGIC `pln_exchange_rates` Delta table. Day-over-day swings are measured as **percentage
-# MAGIC change**, not absolute change, since EUR/GBP (~4-5 PLN) and JPY (~0.035 PLN) sit on
+# MAGIC change**, not absolute change, since EUR/GBP (+-4-5 PLN) and JPY (+-0.035 PLN) sit on
 # MAGIC very different scales - an absolute move means something different for each.
 
 # COMMAND ----------
