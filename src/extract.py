@@ -11,8 +11,10 @@ API reference: https://api.nbp.pl/en.html#kursyWalut
 
 from __future__ import annotations
 
-import requests
+import time
 from datetime import date, datetime, timedelta
+
+import requests
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import ArrayType, DoubleType, StringType, StructField, StructType
 
@@ -99,15 +101,26 @@ class Extract:
         return f"{base_url}/{window_start.isoformat()}/{window_end.isoformat()}/"
 
     def fetch_window(self, window_start: date, window_end: date) -> list[dict]:
-        """Call the API for one date window and return its list of exchange rate tables."""
+        """Call the API for one date window, retrying on failure, and return its list of tables."""
         url = self.build_url(window_start, window_end)
-        response = requests.get(url, params={"format": "json"}, timeout=self.api_config["timeout_seconds"])
-        if response.status_code == 404:
-            # No tables published for this exact range (e.g. a window landing entirely
-            # on a weekend/holiday) - treat as "no data" rather than an error.
-            return []
-        response.raise_for_status()
-        return response.json()
+        max_retries = self.api_config["max_retries"]
+        retry_backoff_seconds = self.api_config["retry_backoff_seconds"]
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = requests.get(
+                    url, params={"format": "json"}, timeout=self.api_config["timeout_seconds"]
+                )
+                if response.status_code == 404:
+                    # No tables published for this exact range (e.g. a window landing entirely
+                    # on a weekend/holiday) - treat as "no data" rather than an error.
+                    return []
+                response.raise_for_status()
+                return response.json()
+            except requests.RequestException:
+                if attempt == max_retries:
+                    raise
+                time.sleep(retry_backoff_seconds)
 
     @staticmethod
     def subtract_years(reference_date: date, years: int) -> date:

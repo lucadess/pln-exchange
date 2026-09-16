@@ -194,3 +194,31 @@ class TestFetchWindow:
 
         with pytest.raises(requests.HTTPError):
             extractor.fetch_window(date(2024, 1, 1), date(2024, 1, 10))
+
+    def test_retries_on_transient_error_then_succeeds(self, extractor, monkeypatch):
+        responses = iter([requests.ConnectionError("boom"), _response(200, [{"table": "A"}])])
+
+        def fake_get(*args, **kwargs):
+            response = next(responses)
+            if isinstance(response, Exception):
+                raise response
+            return response
+
+        monkeypatch.setattr(requests, "get", fake_get)
+
+        tables = extractor.fetch_window(date(2024, 1, 1), date(2024, 1, 10))
+        assert tables == [{"table": "A"}]
+
+    def test_raises_after_exhausting_all_retries(self, extractor, monkeypatch):
+        call_count = 0
+
+        def fake_get(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise requests.ConnectionError("boom")
+
+        monkeypatch.setattr(requests, "get", fake_get)
+
+        with pytest.raises(requests.ConnectionError):
+            extractor.fetch_window(date(2024, 1, 1), date(2024, 1, 10))
+        assert call_count == extractor.api_config["max_retries"]

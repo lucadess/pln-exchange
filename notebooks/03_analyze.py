@@ -84,7 +84,7 @@ spark.sql("""
         exchange_rate,
         exchange_rate - LAG(exchange_rate) OVER (PARTITION BY currency_code ORDER BY effective_date) AS rate_change,
         (exchange_rate - LAG(exchange_rate) OVER (PARTITION BY currency_code ORDER BY effective_date))
-            / LAG(exchange_rate) OVER (PARTITION BY currency_code ORDER BY effective_date) * 100 AS pct_change
+            / LAG(exchange_rate) OVER (PARTITION BY currency_code ORDER BY effective_date) * 100 AS percentage_change
     FROM rates
 """)
 
@@ -97,11 +97,11 @@ spark.sql("""
 # COMMAND ----------
 
 biggest_one_day_fall = spark.sql("""
-    SELECT currency_code, currency_name, effective_date, exchange_rate, rate_change, pct_change
+    SELECT currency_code, currency_name, effective_date, exchange_rate, rate_change, percentage_change
     FROM (
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY currency_code ORDER BY pct_change ASC) AS rnk
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY currency_code ORDER BY percentage_change ASC) AS rnk
         FROM daily_change
-        WHERE pct_change IS NOT NULL
+        WHERE percentage_change IS NOT NULL
     )
     WHERE rnk = 1
     ORDER BY currency_code
@@ -117,11 +117,11 @@ display(biggest_one_day_fall)
 # COMMAND ----------
 
 biggest_one_day_rise = spark.sql("""
-    SELECT currency_code, currency_name, effective_date, exchange_rate, rate_change, pct_change
+    SELECT currency_code, currency_name, effective_date, exchange_rate, rate_change, percentage_change
     FROM (
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY currency_code ORDER BY pct_change DESC) AS rnk
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY currency_code ORDER BY percentage_change DESC) AS rnk
         FROM daily_change
-        WHERE pct_change IS NOT NULL
+        WHERE percentage_change IS NOT NULL
     )
     WHERE rnk = 1
     ORDER BY currency_code
