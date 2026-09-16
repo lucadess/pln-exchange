@@ -1,0 +1,19 @@
+api:
+  base_url: "https://api.nbp.pl/api/exchangerates/tables/A"
+  max_days_per_request: 93
+  timeout_seconds: 10
+  max_retries: 3
+  retry_backoff_seconds: 2
+
+currencies:
+  - code: EUR
+    name: "Euro"
+  - code: USD
+    name: "US Dollar"
+  - code: GBP
+    name: "Pounds Sterling"
+  - code: JPY
+    name: "Japanese Yen"
+
+date_range:
+  years_back: 5
