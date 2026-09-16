@@ -12,7 +12,7 @@ resources:
               table_name: "{{job.parameters.table_name}}"
             source: GIT
           environment_key: Default
-        - task_key: analyze
+        - task_key: visualize
           depends_on:
             - task_key: extract_transform_load
           notebook_task:
@@ -23,9 +23,9 @@ resources:
               table_name: "{{job.parameters.table_name}}"
             source: GIT
           environment_key: Default
-        - task_key: visualize
+        - task_key: analyze
           depends_on:
-            - task_key: analyze
+            - task_key: visualize
           notebook_task:
             notebook_path: notebooks/03_analyze
             base_parameters:
