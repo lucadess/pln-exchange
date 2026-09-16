@@ -1,0 +1,22 @@
+api:
+  base_url: "https://api.nbp.pl/api/exchangerates/tables/A"
+  max_days_per_request: 93   # confirmed via Postman testing against the multi-currency table endpoint
+  timeout_seconds: 10
+  max_retries: 3
+  retry_backoff_seconds: 2
+
+currencies:
+  - code: EUR
+    name: "Euro"
+  - code: USD
+    name: "US Dollar"
+  - code: GBP
+    name: "Pounds Sterling"
+  - code: JPY
+    name: "Japanese Yen"
+
+date_range:
+  years_back: 5
+  # Or set start and end dates to ensure full reproducibility of results. If both are set, they will override the years_back setting.
+  # start_date: "2021-09-15"
+  # end_date: "2026-09-15"
