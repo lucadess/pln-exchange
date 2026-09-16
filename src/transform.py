@@ -20,7 +20,7 @@ class Transform:
             "effectiveDate",
             F.explode("rates").alias("rate"),
         ).select(
-            "effectiveDate",
+            F.to_date("effectiveDate").alias("effectiveDate"),
             "rate.currency",
             "rate.code",
             "rate.mid",
